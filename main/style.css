@@ -1,0 +1,556 @@
+/* ================================================================
+   DRAFT CONTROL — style.css
+   Paleta: negro · blanco · beige
+   Tipografía: Bebas Neue (display) + DM Sans (body) + DM Mono (datos)
+   ================================================================ */
+
+/* ── Variables ── */
+:root {
+  --black:       #0b0b0b;
+  --surface:     #141414;
+  --surface2:    #1e1e1e;
+  --surface3:    #272727;
+  --border:      rgba(210, 185, 145, 0.12);
+  --border-hi:   rgba(210, 185, 145, 0.32);
+  --beige:       #d2b98f;
+  --beige-light: #ede0ca;
+  --beige-dim:   #8a7455;
+  --beige-faint: rgba(210, 185, 145, 0.07);
+  --white:       #f2ece0;
+  --white-dim:   #a89e8e;
+  --red:         #e74c3c;
+  --red-bg:      rgba(231, 76, 60, 0.06);
+  --red-border:  rgba(231, 76, 60, 0.3);
+  --gold:        #d4b060;
+  --amber:       #c07a30;
+  --dark-ale:    #8a7055;
+  --font-display: 'Bebas Neue', sans-serif;
+  --font-body:    'DM Sans', sans-serif;
+  --font-mono:    'DM Mono', monospace;
+  --radius:       10px;
+  --radius-lg:    16px;
+  --shadow:       0 2px 24px rgba(0,0,0,0.55);
+}
+
+/* ── Reset ── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* ── Body ── */
+html, body {
+  min-height: 100vh;
+  background: var(--black);
+  color: var(--white);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Noise overlay (texture) ── */
+.noise {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  opacity: 0.028;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 200px 200px;
+}
+
+/* ── Shell ── */
+.shell {
+  position: relative;
+  z-index: 1;
+  max-width: 440px;
+  margin: 0 auto;
+  padding: 28px 20px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  animation: fade-in 0.5s ease both;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Top Bar ── */
+.top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 22px;
+}
+
+.top-bar__brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand-mark {
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--border-hi);
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface2);
+  flex-shrink: 0;
+}
+
+.brand-name {
+  font-family: var(--font-display);
+  font-size: 22px;
+  letter-spacing: 0.06em;
+  color: var(--white);
+  line-height: 1;
+}
+
+.brand-sub {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--beige-dim);
+  letter-spacing: 0.1em;
+  margin-top: 3px;
+}
+
+/* Connection status */
+.conn-status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--white-dim);
+  letter-spacing: 0.06em;
+}
+
+.conn-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #555;
+  transition: background 0.4s, box-shadow 0.4s;
+  flex-shrink: 0;
+}
+
+.conn-dot.connected {
+  background: #2ecc71;
+  box-shadow: 0 0 7px rgba(46,204,113,0.6);
+  animation: blink 2.4s ease-in-out infinite;
+}
+
+.conn-dot.disconnected {
+  background: var(--red);
+  box-shadow: 0 0 7px rgba(231,76,60,0.5);
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.45; }
+}
+
+/* ── IP Section ── */
+.ip-section {
+  margin-bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ip-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.field-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--beige-dim);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.select-wrap {
+  position: relative;
+  flex: 1;
+}
+
+.select-wrap select {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border-hi);
+  border-radius: var(--radius);
+  color: var(--beige-light);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 9px 34px 9px 12px;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.2s;
+  letter-spacing: 0.04em;
+}
+
+.select-wrap select:focus {
+  border-color: var(--beige);
+}
+
+.select-arrow {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.btn-ping {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 14px;
+  background: var(--surface2);
+  border: 1px solid var(--border-hi);
+  border-radius: var(--radius);
+  color: var(--beige);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.btn-ping:hover {
+  background: var(--beige-faint);
+  border-color: var(--beige);
+}
+
+.btn-ping:active {
+  transform: scale(0.96);
+}
+
+/* Custom IP input */
+.custom-ip-wrap {
+  display: none;
+  animation: slide-down 0.2s ease both;
+}
+
+.custom-ip-wrap.show {
+  display: block;
+}
+
+@keyframes slide-down {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.custom-ip-input {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border-hi);
+  border-radius: var(--radius);
+  color: var(--beige-light);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 10px 14px;
+  outline: none;
+  letter-spacing: 0.1em;
+  transition: border-color 0.2s;
+}
+
+.custom-ip-input::placeholder {
+  color: var(--beige-dim);
+}
+
+.custom-ip-input:focus {
+  border-color: var(--beige);
+}
+
+/* ── Divider ── */
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.divider::before,
+.divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.divider-text {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--beige-dim);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* ── Beer Cards ── */
+.beers {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.beer-card {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 18px 18px 18px 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  overflow: hidden;
+  transition: border-color 0.25s, background 0.25s;
+  cursor: default;
+}
+
+/* Left accent stripe */
+.beer-card::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: var(--surface3);
+  transition: background 0.3s, width 0.2s;
+}
+
+.beer-card.active {
+  border-color: var(--border-hi);
+  background: var(--surface2);
+}
+
+.beer-card.active::before {
+  background: var(--beige);
+  width: 4px;
+}
+
+/* Pour progress bar (bottom edge) */
+.pour-bar {
+  position: absolute;
+  left: 0; bottom: 0;
+  height: 2px;
+  width: 0%;
+  background: linear-gradient(90deg, var(--beige-dim), var(--beige));
+  transition: width 0.15s linear;
+  border-radius: 0 0 0 var(--radius-lg);
+}
+
+/* Left column */
+.beer-card__left {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.beer-num {
+  font-family: var(--font-display);
+  font-size: 13px;
+  color: var(--beige-dim);
+  letter-spacing: 0.08em;
+}
+
+.beer-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.25s, background 0.25s;
+}
+
+.beer-card.active .beer-icon {
+  background: var(--beige-faint);
+}
+
+.beer-icon--gold  { border-color: rgba(212, 176, 96, 0.2); }
+.beer-icon--amber { border-color: rgba(192, 122, 48, 0.2); }
+.beer-icon--dark  { border-color: rgba(138, 112, 85, 0.2); }
+
+.beer-card.active .beer-icon--gold  { border-color: rgba(212, 176, 96, 0.5); }
+.beer-card.active .beer-icon--amber { border-color: rgba(192, 122, 48, 0.5); }
+.beer-card.active .beer-icon--dark  { border-color: rgba(138, 112, 85, 0.5); }
+
+/* Body */
+.beer-card__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.beer-tag {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--beige-dim);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.beer-name {
+  font-family: var(--font-display);
+  font-size: 26px;
+  letter-spacing: 0.04em;
+  color: var(--white);
+  line-height: 1;
+  margin-bottom: 4px;
+  transition: color 0.2s;
+}
+
+.beer-card.active .beer-name {
+  color: var(--beige-light);
+}
+
+.beer-desc {
+  font-size: 12px;
+  color: var(--white-dim);
+  letter-spacing: 0.02em;
+}
+
+/* Serve button */
+.btn-serve {
+  width: 62px;
+  height: 62px;
+  border-radius: 12px;
+  border: 1px solid var(--border-hi);
+  background: var(--surface2);
+  color: var(--beige);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex-shrink: 0;
+  transition: background 0.2s, border-color 0.2s, color 0.2s, transform 0.1s;
+}
+
+.btn-serve__label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.btn-serve:hover {
+  background: var(--beige-faint);
+  border-color: var(--beige);
+}
+
+.btn-serve:active {
+  transform: scale(0.94);
+}
+
+.btn-serve.pouring {
+  background: rgba(210, 185, 145, 0.12);
+  border-color: var(--beige);
+  color: var(--beige-light);
+  animation: pour-glow 0.9s ease-in-out infinite;
+}
+
+@keyframes pour-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(210,185,145,0); }
+  50%       { box-shadow: 0 0 12px 2px rgba(210,185,145,0.18); }
+}
+
+/* ── Stop Section ── */
+.stop-section {
+  margin-bottom: 18px;
+}
+
+.btn-stop {
+  width: 100%;
+  padding: 15px 20px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--red-border);
+  background: var(--red-bg);
+  color: var(--red);
+  font-family: var(--font-display);
+  font-size: 18px;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: background 0.2s, border-color 0.2s, transform 0.1s;
+}
+
+.btn-stop:hover {
+  background: rgba(231, 76, 60, 0.12);
+  border-color: rgba(231, 76, 60, 0.55);
+}
+
+.btn-stop:active {
+  transform: scale(0.98);
+}
+
+/* ── Log Bar ── */
+.log-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+}
+
+.log-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--beige-dim);
+  letter-spacing: 0.2em;
+  flex-shrink: 0;
+  background: var(--surface3);
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+.log-text {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--white-dim);
+  letter-spacing: 0.05em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color 0.3s;
+}
+
+.log-text.ok    { color: #2ecc71; }
+.log-text.error { color: var(--red); }
+.log-text.warn  { color: var(--beige); }
+
+/* ── Responsive ── */
+@media (max-width: 380px) {
+  .beer-name { font-size: 22px; }
+  .btn-serve { width: 54px; height: 54px; }
+  .beer-icon { width: 44px; height: 44px; }
+}
