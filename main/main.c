@@ -24,80 +24,65 @@
 #include "driver/dac_oneshot.h"
 
 /* ── Configuración WiFi ─────────────────────────────────── */
-#define WIFI_SSID       "Galaxy A21 sFB42"
-#define WIFI_PASS       "12246778"
-#define WIFI_MAX_RETRY  10
+#define WIFI_SSID "Galaxy A21 sFB42"
+#define WIFI_PASS "12246778"
+#define WIFI_MAX_RETRY 10
 
 /* ── GPIOs válvula biestable 5/2 ────────────────────────── */
-#define RELAY_A_GPIO        GPIO_NUM_18   /* bobina avanzar  */
-#define RELAY_B_GPIO        GPIO_NUM_19   /* bobina retornar */
+#define RELAY_A_GPIO GPIO_NUM_18 /* bobina avanzar  */
+#define RELAY_B_GPIO GPIO_NUM_19 /* bobina retornar */
 
-#define BISTABLE_PULSE_MS   1000        
-#define DAC_AVANCE          10
-#define DAC_RETORNO         80
+#define BISTABLE_PULSE_MS 1000
+#define DAC_AVANCE 20
+#define DAC_RETORNO 200
 
 /* ¿Relés activo-LOW? */
-#define RELAY_ACTIVE_LOW  0
+#define RELAY_ACTIVE_LOW 0
 #if RELAY_ACTIVE_LOW
-  #define RELAY_ON  0
-  #define RELAY_OFF 1
+#define RELAY_ON 0
+#define RELAY_OFF 1
 #else
-  #define RELAY_ON  1
-  #define RELAY_OFF 0
+#define RELAY_ON 1
+#define RELAY_OFF 0
 #endif
 
 /* ── Constantes internas ────────────────────────────────── */
 static const char *TAG = "DraftCtrl";
 #define WIFI_CONNECTED_BIT BIT0
-#define WIFI_FAIL_BIT      BIT1
+#define WIFI_FAIL_BIT BIT1
 
 static EventGroupHandle_t s_wifi_event_group;
-static int  s_retry_count = 0;
+static int s_retry_count = 0;
 static char s_device_ip[20] = "0.0.0.0";
 
 static dac_oneshot_handle_t dac_handle;
-static TaskHandle_t         profile_task_handle = NULL;
+static TaskHandle_t profile_task_handle = NULL;
 
 static volatile bool g_stop_requested = false;
-static volatile int  g_active_profile  = -1;
+static volatile int g_active_profile = -1;
 
-/* ================================================================
-   Definición de perfiles de ángulo
-   ================================================================
-
-   avance_ms      — tiempo con DAC_AVANCE activo (determina el ángulo)
-   retorno_ms     — tiempo de espera tras pulso RELAY_B para completar retorno
-
-   Regla de diseño:  avance_ms canal 1 < canal 2 < canal 3
-   ────────────────────────────────────────────────────────────────
-   ch=1  0.55 s avance  →  ángulo pequeño
-   ch=2  1.10 s avance  →  ángulo medio   (el doble del ch=1)
-   ch=3  1.80 s avance  →  ángulo grande
-   ────────────────────────────────────────────────────────────────
-   retorno_ms se escoge un poco mayor que avance_ms para garantizar
-   que el motor llegue de vuelta a 0° con margen.
-*/
-typedef struct {
+typedef struct
+{
     const char *nombre;
-    int         avance_ms;   /* tiempo de avance (calibra el ángulo)  */
-    int         retorno_ms;  /* espera tras pulso B para llegar a 0°  */
+    int avance_ms;  /* tiempo de avance (calibra el ángulo)  */
+    int retorno_ms; /* espera tras pulso B para llegar a 0°  */
 } perfil_angulo_t;
 
 static const perfil_angulo_t PERFILES[] = {
     /* nombre      avance_ms   retorno_ms */
-    { "ang_ch1",     550,        900  },   /* ch=1 — ángulo pequeño  */
-    { "ang_ch2",    1100,       1400  },   /* ch=2 — ángulo medio    */
-    { "ang_ch3",    1800,       2200  },   /* ch=3 — ángulo grande   */
+    {"ang_ch1", 400, 500},   /* ch=1 — ángulo pequeño  */
+    {"ang_ch2", 980, 1400}, /* ch=2 — ángulo medio    */
+    {"ang_ch3", 1800, 2200}, /* ch=3 — ángulo grande   */
 };
-#define NUM_PERFILES  (sizeof(PERFILES) / sizeof(PERFILES[0]))
+#define NUM_PERFILES (sizeof(PERFILES) / sizeof(PERFILES[0]))
 
 /* ── Archivos web embebidos ─────────────────────────────── */
 extern const char index_html_start[] asm("_binary_index_html_start");
-extern const char index_html_end[]   asm("_binary_index_html_end");
-extern const char style_css_start[]  asm("_binary_style_css_start");
-extern const char style_css_end[]    asm("_binary_style_css_end");
-extern const char app_js_start[]     asm("_binary_app_js_start");
-extern const char app_js_end[]       asm("_binary_app_js_end");
+extern const char index_html_end[] asm("_binary_index_html_end");
+extern const char style_css_start[] asm("_binary_style_css_start");
+extern const char style_css_end[] asm("_binary_style_css_end");
+extern const char app_js_start[] asm("_binary_app_js_start");
+extern const char app_js_end[] asm("_binary_app_js_end");
 
 /* ================================================================
    GPIO — Relés
@@ -107,10 +92,10 @@ static void relays_init(void)
 {
     gpio_config_t cfg = {
         .pin_bit_mask = (1ULL << RELAY_A_GPIO) | (1ULL << RELAY_B_GPIO),
-        .mode         = GPIO_MODE_OUTPUT,
-        .pull_up_en   = GPIO_PULLUP_DISABLE,
+        .mode = GPIO_MODE_OUTPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
-        .intr_type    = GPIO_INTR_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE,
     };
     gpio_config(&cfg);
     gpio_set_level(RELAY_A_GPIO, RELAY_OFF);
@@ -126,13 +111,14 @@ static void relays_init(void)
  */
 static void bistable_pulse(int bobina)
 {
-    if (bobina != 1 && bobina != 2) return;
+    if (bobina != 1 && bobina != 2)
+        return;
 
     gpio_set_level(RELAY_A_GPIO, RELAY_OFF);
     gpio_set_level(RELAY_B_GPIO, RELAY_OFF);
     vTaskDelay(pdMS_TO_TICKS(10));
 
-    gpio_num_t  pin    = (bobina == 1) ? RELAY_A_GPIO : RELAY_B_GPIO;
+    gpio_num_t pin = (bobina == 1) ? RELAY_A_GPIO : RELAY_B_GPIO;
     const char *nombre = (bobina == 1) ? "A (avanzar)" : "B (retornar)";
 
     gpio_set_level(pin, RELAY_ON);
@@ -148,7 +134,7 @@ static void bistable_pulse(int bobina)
 
 static esp_err_t init_dac(void)
 {
-    dac_oneshot_config_t config = { .chan_id = DAC_CHAN_1 };
+    dac_oneshot_config_t config = {.chan_id = DAC_CHAN_1};
     ESP_ERROR_CHECK(dac_oneshot_new_channel(&config, &dac_handle));
 
     /* IMPORTANTE: arranca en 0V — motor completamente quieto */
@@ -175,7 +161,7 @@ static void emergency_stop(void)
     ESP_LOGW(TAG, "EMERGENCIA — retornando a 0° con DAC=%d", DAC_RETORNO);
     dac_oneshot_output_voltage(dac_handle, DAC_RETORNO);
     bistable_pulse(2);
-    vTaskDelay(pdMS_TO_TICKS(2500)); 
+    vTaskDelay(pdMS_TO_TICKS(2500));
     dac_oneshot_output_voltage(dac_handle, 0);
 
     g_active_profile = -1;
@@ -188,12 +174,14 @@ static void emergency_stop(void)
 
 static void profile_task(void *pvParam)
 {
-    while (true) {
+    while (true)
+    {
         /* Espera notificación con índice de perfil (valor = idx+1) */
         uint32_t notif = ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
         int idx = (int)(notif - 1);
 
-        if (idx < 0 || idx >= (int)NUM_PERFILES) {
+        if (idx < 0 || idx >= (int)NUM_PERFILES)
+        {
             ESP_LOGE(TAG, "Índice de perfil inválido: %d", idx);
             continue;
         }
@@ -209,12 +197,14 @@ static void profile_task(void *pvParam)
         dac_oneshot_output_voltage(dac_handle, 0);
         vTaskDelay(pdMS_TO_TICKS(50));
 
-        if (g_stop_requested) goto retorno;
+        if (g_stop_requested)
+            goto retorno;
 
         /* ── PASO 2: Pulso RELAY_A — habilitar dirección avance ── */
         bistable_pulse(1);
 
-        if (g_stop_requested) goto retorno;
+        if (g_stop_requested)
+            goto retorno;
 
         /* ── PASO 3: DAC = DAC_AVANCE — presión baja, motor gira ── */
         dac_oneshot_output_voltage(dac_handle, DAC_AVANCE);
@@ -224,7 +214,8 @@ static void profile_task(void *pvParam)
         /* ── PASO 4: Espera avance_ms en chunks de 50 ms (abortable) ── */
         {
             int remaining = p->avance_ms;
-            while (remaining > 0 && !g_stop_requested) {
+            while (remaining > 0 && !g_stop_requested)
+            {
                 int chunk = MIN(remaining, 50);
                 vTaskDelay(pdMS_TO_TICKS(chunk));
                 remaining -= chunk;
@@ -235,30 +226,49 @@ static void profile_task(void *pvParam)
         dac_oneshot_output_voltage(dac_handle, 0);
         ESP_LOGI(TAG, "  DAC=0 — motor detenido en ángulo objetivo");
 
-        if (g_stop_requested) goto retorno;
+        if (g_stop_requested)
+            goto retorno;
 
         /* ── PASO 6: Pausa de estabilización mecánica ── */
-        vTaskDelay(pdMS_TO_TICKS(500));
+        vTaskDelay(pdMS_TO_TICKS(4000));
 
-retorno:
+    retorno:
         /* ── PASO 7-9: Retorno a 0° ────────────────────────────── */
-        ESP_LOGI(TAG, "  Retornando a 0° — DAC=%d, espera=%d ms",
-                 DAC_RETORNO, p->retorno_ms);
+        /* ── RETORNO CORREGIDO ── */
 
+        // 1. Cortar presión PRIMERO
+        dac_oneshot_output_voltage(dac_handle, 0);
+        vTaskDelay(pdMS_TO_TICKS(100)); // asegurar que el motor para
+
+        // 2. Pulso RELAY_B — válvula conmuta SIN presión
+        bistable_pulse(2);
+
+        // 3. Esperar que la válvula termine de conmutar mecánicamente
+        vTaskDelay(pdMS_TO_TICKS(200));
+
+        // 4. AHORA sí subir presión — ya está en dirección correcta
         dac_oneshot_output_voltage(dac_handle, DAC_RETORNO);
-        bistable_pulse(2);                          /* pulso RELAY_B */
+
+        // 5. Esperar retorno_ms
         {
             int remaining = p->retorno_ms;
-            while (remaining > 0) {
+            while (remaining > 0)
+            {
                 vTaskDelay(pdMS_TO_TICKS(MIN(remaining, 100)));
                 remaining -= MIN(remaining, 100);
             }
         }
-        dac_oneshot_output_voltage(dac_handle, 0);  /* cierre final */
 
-        if (!g_stop_requested) {
+        // 6. Cortar presión al final
+        dac_oneshot_output_voltage(dac_handle, 0);
+
+        if (!g_stop_requested)
+        {
             ESP_LOGI(TAG, "✔ Canal %d completado y retornado a 0°", idx + 1);
-        } else {
+            bistable_pulse(1);
+        }
+        else
+        {
             ESP_LOGW(TAG, "⚠ Canal %d abortado — retornado a 0°", idx + 1);
         }
 
@@ -271,20 +281,28 @@ retorno:
    ================================================================ */
 
 static void wifi_event_handler(void *arg, esp_event_base_t base,
-                                int32_t event_id, void *event_data)
+                               int32_t event_id, void *event_data)
 {
-    if (base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
+    if (base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START)
+    {
         esp_wifi_connect();
-    } else if (base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
-        if (s_retry_count < WIFI_MAX_RETRY) {
+    }
+    else if (base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED)
+    {
+        if (s_retry_count < WIFI_MAX_RETRY)
+        {
             esp_wifi_connect();
             s_retry_count++;
             ESP_LOGW(TAG, "Reintentando WiFi (%d/%d)…", s_retry_count, WIFI_MAX_RETRY);
-        } else {
+        }
+        else
+        {
             xEventGroupSetBits(s_wifi_event_group, WIFI_FAIL_BIT);
             ESP_LOGE(TAG, "No se pudo conectar al AP");
         }
-    } else if (base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
+    }
+    else if (base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP)
+    {
         ip_event_got_ip_t *ev = (ip_event_got_ip_t *)event_data;
         snprintf(s_device_ip, sizeof(s_device_ip), IPSTR, IP2STR(&ev->ip_info.ip));
         ESP_LOGI(TAG, "IP obtenida: %s", s_device_ip);
@@ -311,7 +329,7 @@ static void wifi_init_sta(void)
 
     wifi_config_t wifi_cfg = {
         .sta = {
-            .ssid     = WIFI_SSID,
+            .ssid = WIFI_SSID,
             .password = WIFI_PASS,
             .threshold.authmode = WIFI_AUTH_WPA2_PSK,
         },
@@ -337,7 +355,7 @@ static void wifi_init_sta(void)
 
 static esp_err_t set_cors_headers(httpd_req_t *req)
 {
-    httpd_resp_set_hdr(req, "Access-Control-Allow-Origin",  "*");
+    httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
     httpd_resp_set_hdr(req, "Access-Control-Allow-Methods", "GET, POST, OPTIONS");
     httpd_resp_set_hdr(req, "Access-Control-Allow-Headers", "Content-Type");
     return ESP_OK;
@@ -346,17 +364,21 @@ static esp_err_t set_cors_headers(httpd_req_t *req)
 static int read_body(httpd_req_t *req, char *buf, size_t buf_len)
 {
     int remaining = req->content_len;
-    if (remaining <= 0 || remaining >= (int)buf_len) return -1;
+    if (remaining <= 0 || remaining >= (int)buf_len)
+        return -1;
 
     int received = 0;
-    while (remaining > 0) {
+    while (remaining > 0)
+    {
         int ret = httpd_req_recv(req, buf + received,
                                  MIN(remaining, (int)(buf_len - received - 1)));
-        if (ret <= 0) {
-            if (ret == HTTPD_SOCK_ERR_TIMEOUT) continue;
+        if (ret <= 0)
+        {
+            if (ret == HTTPD_SOCK_ERR_TIMEOUT)
+                continue;
             return -1;
         }
-        received  += ret;
+        received += ret;
         remaining -= ret;
     }
     buf[received] = '\0';
@@ -401,8 +423,8 @@ static esp_err_t handler_ping(httpd_req_t *req)
     httpd_resp_set_type(req, "application/json");
 
     const char *perfil_activo = (g_active_profile >= 0)
-                                ? PERFILES[g_active_profile].nombre
-                                : "idle";
+                                    ? PERFILES[g_active_profile].nombre
+                                    : "idle";
 
     char resp[160];
     snprintf(resp, sizeof(resp),
@@ -425,27 +447,31 @@ static esp_err_t handler_relay(httpd_req_t *req)
 {
     set_cors_headers(req);
 
-    if (req->method == HTTP_OPTIONS) {
+    if (req->method == HTTP_OPTIONS)
+    {
         httpd_resp_send(req, NULL, 0);
         return ESP_OK;
     }
 
     char body[128] = {0};
-    if (read_body(req, body, sizeof(body)) < 0) {
+    if (read_body(req, body, sizeof(body)) < 0)
+    {
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Body inválido");
         return ESP_FAIL;
     }
 
     cJSON *root = cJSON_Parse(body);
-    if (!root) {
+    if (!root)
+    {
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "JSON inválido");
         return ESP_FAIL;
     }
 
-    cJSON *ch_item    = cJSON_GetObjectItem(root, "ch");
+    cJSON *ch_item = cJSON_GetObjectItem(root, "ch");
     cJSON *state_item = cJSON_GetObjectItem(root, "state");
 
-    if (!cJSON_IsNumber(ch_item) || !cJSON_IsNumber(state_item)) {
+    if (!cJSON_IsNumber(ch_item) || !cJSON_IsNumber(state_item))
+    {
         cJSON_Delete(root);
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Campos faltantes");
         return ESP_FAIL;
@@ -455,23 +481,29 @@ static esp_err_t handler_relay(httpd_req_t *req)
     int st = (int)state_item->valuedouble;
     cJSON_Delete(root);
 
-    if (ch < 1 || ch > 3) {
+    if (ch < 1 || ch > 3)
+    {
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Canal inválido (1-3)");
         return ESP_FAIL;
     }
 
-    if (st == 0) {
+    if (st == 0)
+    {
         /* Detener perfil activo y retornar */
-        if (g_active_profile >= 0) {
+        if (g_active_profile >= 0)
+        {
             g_stop_requested = true;
             vTaskDelay(pdMS_TO_TICKS(150));
         }
         ESP_LOGI(TAG, "Canal %d — stop solicitado", ch);
-    } else {
+    }
+    else
+    {
         /* Lanzar perfil del canal */
         int idx = ch - 1;
 
-        if (g_active_profile >= 0) {
+        if (g_active_profile >= 0)
+        {
             g_stop_requested = true;
             vTaskDelay(pdMS_TO_TICKS(150));
         }
@@ -494,7 +526,8 @@ static esp_err_t handler_stop(httpd_req_t *req)
 {
     set_cors_headers(req);
 
-    if (req->method == HTTP_OPTIONS) {
+    if (req->method == HTTP_OPTIONS)
+    {
         httpd_resp_send(req, NULL, 0);
         return ESP_OK;
     }
@@ -512,30 +545,32 @@ static esp_err_t handler_stop(httpd_req_t *req)
 
 static httpd_handle_t start_webserver(void)
 {
-    httpd_config_t config   = HTTPD_DEFAULT_CONFIG();
+    httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.lru_purge_enable = true;
     config.max_uri_handlers = 10;
-    config.server_port      = 80;
-    config.stack_size       = 8192;
+    config.server_port = 80;
+    config.stack_size = 8192;
 
     httpd_handle_t server = NULL;
-    if (httpd_start(&server, &config) != ESP_OK) {
+    if (httpd_start(&server, &config) != ESP_OK)
+    {
         ESP_LOGE(TAG, "Error al iniciar servidor HTTP");
         return NULL;
     }
 
     httpd_uri_t uris[] = {
-        { .uri = "/",          .method = HTTP_GET,     .handler = handler_root  },
-        { .uri = "/style.css", .method = HTTP_GET,     .handler = handler_css   },
-        { .uri = "/app.js",    .method = HTTP_GET,     .handler = handler_js    },
-        { .uri = "/ping",      .method = HTTP_GET,     .handler = handler_ping  },
-        { .uri = "/relay",     .method = HTTP_POST,    .handler = handler_relay },
-        { .uri = "/relay",     .method = HTTP_OPTIONS, .handler = handler_relay },
-        { .uri = "/stop",      .method = HTTP_POST,    .handler = handler_stop  },
-        { .uri = "/stop",      .method = HTTP_OPTIONS, .handler = handler_stop  },
+        {.uri = "/", .method = HTTP_GET, .handler = handler_root},
+        {.uri = "/style.css", .method = HTTP_GET, .handler = handler_css},
+        {.uri = "/app.js", .method = HTTP_GET, .handler = handler_js},
+        {.uri = "/ping", .method = HTTP_GET, .handler = handler_ping},
+        {.uri = "/relay", .method = HTTP_POST, .handler = handler_relay},
+        {.uri = "/relay", .method = HTTP_OPTIONS, .handler = handler_relay},
+        {.uri = "/stop", .method = HTTP_POST, .handler = handler_stop},
+        {.uri = "/stop", .method = HTTP_OPTIONS, .handler = handler_stop},
     };
 
-    for (int i = 0; i < sizeof(uris) / sizeof(uris[0]); i++) {
+    for (int i = 0; i < sizeof(uris) / sizeof(uris[0]); i++)
+    {
         ESP_ERROR_CHECK(httpd_register_uri_handler(server, &uris[i]));
     }
 
@@ -551,7 +586,8 @@ void app_main(void)
 {
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES ||
-        ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        ret == ESP_ERR_NVS_NEW_VERSION_FOUND)
+    {
         ESP_ERROR_CHECK(nvs_flash_erase());
         ret = nvs_flash_init();
     }
@@ -577,7 +613,8 @@ void app_main(void)
     start_webserver();
 
     /* Heartbeat */
-    while (true) {
+    while (true)
+    {
         ESP_LOGD(TAG, "Heap libre: %lu bytes  |  Canal activo: %s",
                  (unsigned long)esp_get_free_heap_size(),
                  (g_active_profile >= 0) ? PERFILES[g_active_profile].nombre : "idle");
